@@ -1,0 +1,2 @@
+#!/bin/bash
+wget --no-cookies --header "Cookie: session=$(cat cookie.txt)" https://adventofcode.com/2022/day/$1/input -O day$1/input

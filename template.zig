@@ -4,7 +4,7 @@ var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const alloc = gpa.allocator();
 
 pub fn main() !void {
-    var file = std.fs.cwd().openFile("input");
+    var file = try std.fs.cwd().openFile("input", .{});
     defer file.close();
 
     var buf_reader = std.io.bufferedReader(file.reader());

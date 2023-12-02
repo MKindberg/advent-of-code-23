@@ -38,12 +38,31 @@ pub fn solve(input: []const u8) !Result {
     return res;
 }
 
+fn printTimeDiff(from: i128, to: i128) void {
+    var diff = to - from;
+    if (diff > std.time.ns_per_s) {
+        const sec = @divFloor(diff, std.time.ns_per_s);
+        std.debug.print("{}s ", .{sec});
+        diff -= sec * std.time.ns_per_s;
+    }
+    if (diff > std.time.ns_per_ms) {
+        const ms = @divFloor(diff, std.time.ns_per_ms);
+        std.debug.print("{}ms ", .{ms});
+        diff -= ms * std.time.ns_per_ms;
+    }
+    std.debug.print("{}us\n", .{@divFloor(diff, std.time.ns_per_us)});
+}
+
 pub fn main() !void {
     const input = @embedFile("input");
+
+    const start = std.time.nanoTimestamp();
     const res = try solve(input);
+    const stop = std.time.nanoTimestamp();
 
     std.debug.print("Part 1: {}\n", .{res.p1});
     std.debug.print("Part 2: {}\n", .{res.p2});
+    printTimeDiff(start, stop);
 }
 
 test "test" {}

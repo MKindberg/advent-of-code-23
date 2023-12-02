@@ -1,20 +1,35 @@
 const std = @import("std");
 
+const Result = struct { p1: usize, p2: usize };
+
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const alloc = gpa.allocator();
 
-pub fn main() !void {
-    var file = try std.fs.cwd().openFile("input", .{});
-    defer file.close();
-
-    var buf_reader = std.io.bufferedReader(file.reader());
-    var in_stream = buf_reader.reader();
-
-    var buf: [1024]u8 = undefined;
-    while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
+pub fn solve(input: []const u8) !Result {
+    var res = Result{ .p1 = 0, .p2 = 0 };
+    var lines = std.mem.tokenizeScalar(u8, input, '\n');
+    while (lines.next()) |line| {
         _ = line;
     }
+    return res;
 }
 
-test "test" {
+pub fn main() !void {
+    const input = @embedFile("input");
+    const res = try solve(input);
+
+    std.debug.print("Part 1: {}\n", .{res.p1});
+    std.debug.print("Part 2: {}\n", .{res.p2});
+}
+
+test "test1" {
+    const test_input1 = "";
+    const res = try solve(test_input1);
+    try std.testing.expect(res.p1 == 0);
+}
+
+test "test2" {
+    const test_input2 = "";
+    const res = try solve(test_input2);
+    try std.testing.expect(res.p2 == 0);
 }

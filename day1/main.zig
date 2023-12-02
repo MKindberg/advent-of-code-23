@@ -1,7 +1,6 @@
 const std = @import("std");
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-const alloc = gpa.allocator();
+const Result = struct { p1: usize, p2: usize };
 
 const words: [9]struct { []const u8, usize } = .{ .{ "one", 1 }, .{ "two", 2 }, .{ "three", 3 }, .{ "four", 4 }, .{ "five", 5 }, .{ "six", 6 }, .{ "seven", 7 }, .{ "eight", 8 }, .{ "nine", 9 } };
 
@@ -27,7 +26,7 @@ fn parseLine(comptime part: u8, line: []const u8) usize {
         if (d != 0) {
             break d;
         }
-    } else unreachable;
+    } else 0;
 
     i = 0;
     const last: usize = while (i < line.len) : (i += 1) {
@@ -35,47 +34,43 @@ fn parseLine(comptime part: u8, line: []const u8) usize {
         if (d != 0) {
             break d;
         }
-    } else unreachable;
+    } else 0;
 
     return first * 10 + last;
 }
 
-pub fn main() !void {
-    var file = try std.fs.cwd().openFile("input", .{});
-    defer file.close();
-
-    var buf_reader = std.io.bufferedReader(file.reader());
-    var in_stream = buf_reader.reader();
-
-    var sum1: usize = 0;
-    var sum2: usize = 0;
-    var buf: [1024]u8 = undefined;
-    while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
-        sum1 += parseLine(1, line);
-        sum2 += parseLine(2, line);
+pub fn solve(input: []const u8) !Result {
+    var res = Result{ .p1 = 0, .p2 = 0 };
+    var lines = std.mem.tokenizeScalar(u8, input, '\n');
+    while (lines.next()) |line| {
+        res.p1 += parseLine(1, line);
+        res.p2 += parseLine(2, line);
     }
-    std.debug.print("Part 1: {}\n", .{sum1});
-    std.debug.print("Part 2: {}\n", .{sum2});
+    return res;
+}
+
+
+pub fn main() !void {
+    const input = @embedFile("input");
+    const res = try solve(input);
+
+    std.debug.print("Part 1: {}\n", .{res.p1});
+    std.debug.print("Part 2: {}\n", .{res.p2});
 }
 
 test "test1" {
-    const input =
+    const test_input1 =
         \\1abc2
         \\pqr3stu8vwx
         \\a1b2c3d4e5f
         \\treb7uchet
     ;
-    var sum: usize = 0;
-
-    var it = std.mem.tokenizeScalar(u8, input[0..], '\n');
-    while (it.next()) |l| {
-        sum += parseLine(1, l);
-    }
-    try std.testing.expect(sum == 142);
+    const res = try solve(test_input1);
+    try std.testing.expect(res.p1 == 142);
 }
 
 test "test2" {
-    const input =
+    const test_input2 =
         \\two1nine
         \\eightwothree
         \\abcone2threexyz
@@ -84,11 +79,6 @@ test "test2" {
         \\zoneight234
         \\7pqrstsixteen
     ;
-    var sum: usize = 0;
-
-    var it = std.mem.tokenizeScalar(u8, input[0..], '\n');
-    while (it.next()) |l| {
-        sum += parseLine(2, l);
-    }
-    try std.testing.expect(sum == 281);
+    const res = try solve(test_input2);
+    try std.testing.expect(res.p2 == 281);
 }

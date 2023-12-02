@@ -14,31 +14,22 @@ pub fn solve(input: []const u8) !Result {
     return res;
 }
 
-fn printTimeDiff(from: i128, to: i128) void {
-    var diff = to-from;
-    if (diff > std.time.ns_per_s) {
-        const sec = @divFloor(diff , std.time.ns_per_s);
-        std.debug.print("{}s ", .{sec});
-        diff -= sec * std.time.ns_per_s;
-    }
-    if (diff > std.time.ns_per_ms) {
-        const ms = @divFloor(diff , std.time.ns_per_ms);
-        std.debug.print("{}ms ", .{ms});
-        diff -= ms * std.time.ns_per_ms;
-    }
-    std.debug.print("{}us\n", .{@divFloor(diff,std.time.ns_per_us)});
+pub fn getInput() []const u8 {
+    return @embedFile("inputs/" ++ @typeName(@This()));
+}
+
+pub fn readInput(path: []const u8) []const u8 {
+    const file = std.fs.cwd().openFile(path, .{}) catch @panic("could not open file");
+    return file.readToEndAlloc(alloc, file.getEndPos() catch @panic("could not read file")) catch @panic("could not read file");
 }
 
 pub fn main() !void {
-    const input = @embedFile("input");
-
-    const start = std.time.nanoTimestamp();
+    var args = std.process.args();
+    _ = args.skip();
+    const input = if (args.next()) |path| readInput(path) else getInput();
     const res = try solve(input);
-    const stop = std.time.nanoTimestamp();
-
-    std.debug.print("Part 1: {}\n", .{res.p1});
+    std.debug.print("\nPart 1: {}\n", .{res.p1});
     std.debug.print("Part 2: {}\n", .{res.p2});
-    printTimeDiff(start, stop);
 }
 
 test "test1" {

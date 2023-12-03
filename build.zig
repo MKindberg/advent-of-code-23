@@ -50,7 +50,6 @@ fn addNextDayStep(b: *std.Build, next_day: usize) void {
         includes.appendSlice(".zig\"), ") catch unreachable;
     }
     includes.appendSlice("};\n") catch unreachable;
-    // const include_step = b.addWriteFile("src/days.zig", includes.items);
     const path = std.fmt.allocPrint(b.allocator, "{s}/../src/days.zig", .{b.install_path}) catch unreachable;
     const include_step = b.addWriteFile(path, includes.items);
     // Create target

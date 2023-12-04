@@ -35,11 +35,11 @@ pub fn main() !void {
 test "test1" {
     const test_input1 = "";
     const res = try solve(test_input1);
-    try std.testing.expect(res.p1 == 0);
+    try std.testing.expectEqual(res.p1, 0);
 }
 
 test "test2" {
     const test_input2 = "";
     const res = try solve(test_input2);
-    try std.testing.expect(res.p2 == 0);
+    try std.testing.expectEqual(res.p2, 0);
 }

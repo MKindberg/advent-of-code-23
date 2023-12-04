@@ -17,22 +17,44 @@ fn printTimeDiff(diff: i128) void {
 }
 
 pub fn main() !void {
+    var args = std.process.args();
+    _ = args.skip();
+    const d = std.fmt.parseInt(usize, args.next() orelse "0", 10) catch @panic("First arg must be an integer");
+    const n = std.fmt.parseInt(usize, args.next() orelse "100", 10) catch @panic("Second arg must be an integer");
     var total_time: i128 = 0;
-    inline for (days, 1..) |day, i| {
-        const start = std.time.nanoTimestamp();
-        const res = try day.solve(day.getInput());
-        const stop = std.time.nanoTimestamp();
-        const diff = stop-start;
-        total_time += diff;
+    if (d == 0) {
+        inline for (days, 1..) |day, i| {
+            const start = std.time.nanoTimestamp();
+            const res = try day.solve(day.getInput());
+            const stop = std.time.nanoTimestamp();
+            const diff = stop - start;
+            total_time += diff;
 
-        std.debug.print("Day {}\n", .{i});
-        std.debug.print("    Part 1: {}\n", .{res.p1});
-        std.debug.print("    Part 2: {}\n", .{res.p2});
-        std.debug.print("    Time: ", .{});
-        printTimeDiff(diff);
+            std.debug.print("Day {}\n", .{i});
+            std.debug.print("    Part 1: {}\n", .{res.p1});
+            std.debug.print("    Part 2: {}\n", .{res.p2});
+            std.debug.print("    Time: ", .{});
+            printTimeDiff(diff);
+            std.debug.print("\n", .{});
+        }
+        std.debug.print("Total time: ", .{});
+        printTimeDiff(total_time);
         std.debug.print("\n", .{});
+    } else {
+        inline for (days, 1..) |day, i| {
+            if (i == d) {
+                for (0..n) |_| {
+                    const start = std.time.nanoTimestamp();
+                    const res = try day.solve(day.getInput());
+                    _ = res;
+                    const stop = std.time.nanoTimestamp();
+                    const diff = stop - start;
+                    total_time += diff;
+                }
+                std.debug.print("Average time: ", .{});
+                printTimeDiff(@divTrunc(total_time, n));
+                std.debug.print("\n", .{});
+            }
+        }
     }
-    std.debug.print("Total time: ", .{});
-    printTimeDiff(total_time);
-    std.debug.print("\n", .{});
 }

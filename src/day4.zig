@@ -5,7 +5,15 @@ const Result = struct { p1: usize, p2: usize };
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const alloc = gpa.allocator();
 
-fn parseTicket(ticket: []const u8, winning_nums: *std.ArrayList(usize), my_nums: *std.ArrayList(usize)) void {
+fn parseTicket(ticket: []const u8) usize {
+    var buf: [20 * 8]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&buf);
+    const fba_allocator = fba.allocator();
+
+    var winning_nums = std.ArrayList(usize).initCapacity(fba_allocator, 20) catch unreachable;
+    defer winning_nums.deinit();
+
+    var wins: usize = 0;
     var nums = std.mem.tokenizeScalar(u8, ticket, ' ');
     _ = nums.next();
     _ = nums.next();
@@ -16,32 +24,28 @@ fn parseTicket(ticket: []const u8, winning_nums: *std.ArrayList(usize), my_nums:
         winning_nums.appendAssumeCapacity(std.fmt.parseInt(usize, num, 10) catch unreachable);
     }
     while (nums.next()) |num| {
-        my_nums.appendAssumeCapacity(std.fmt.parseInt(usize, num, 10) catch unreachable);
-    }
-}
-
-fn countWinning(winning_nums: std.ArrayList(usize), my_nums: std.ArrayList(usize)) usize {
-    var n: usize = 0;
-    for (my_nums.items) |num| {
-        if (std.mem.indexOfScalar(usize, winning_nums.items, num) != null) {
-            n += 1;
+        const nm = std.fmt.parseInt(usize, num, 10) catch unreachable;
+        for (winning_nums.items) |n| {
+            if (nm == n) {
+                wins += 1;
+                break;
+            }
         }
+        // if (std.mem.indexOfScalar(usize, winning_nums.items, std.fmt.parseInt(usize, num, 10) catch unreachable) != null) {
+        //     wins += 1;
+        // }
     }
-    return n;
+    return wins;
 }
 
 pub fn solve(input: []const u8) !Result {
-    var buf: [(300 + 20 + 30) * 8]u8 = undefined;
+    var buf: [300 * 8]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buf);
     const fba_allocator = fba.allocator();
 
     var res = Result{ .p1 = 0, .p2 = 0 };
     var lines = std.mem.tokenizeScalar(u8, input, '\n');
     const number_of_tickets: usize = std.mem.count(u8, input, "|");
-    var winning_nums = std.ArrayList(usize).initCapacity(fba_allocator, 20) catch unreachable;
-    defer winning_nums.deinit();
-    var my_nums = std.ArrayList(usize).initCapacity(fba_allocator, 30) catch unreachable;
-    defer my_nums.deinit();
     var tickets = std.ArrayList(usize).initCapacity(fba_allocator, number_of_tickets) catch unreachable;
     defer tickets.deinit();
 
@@ -49,11 +53,8 @@ pub fn solve(input: []const u8) !Result {
 
     var ticket_id: usize = 0;
     while (lines.next()) |line| : (ticket_id += 1) {
-        parseTicket(line, &winning_nums, &my_nums);
-        defer winning_nums.resize(0) catch unreachable;
-        defer my_nums.resize(0) catch unreachable;
+        var wins = parseTicket(line);
 
-        var wins = countWinning(winning_nums, my_nums);
         res.p1 += if (wins > 0) std.math.pow(usize, 2, wins - 1) else 0;
         res.p2 += tickets.items[ticket_id];
 

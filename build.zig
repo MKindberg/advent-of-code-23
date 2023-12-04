@@ -20,8 +20,8 @@ pub fn build(b: *std.Build) void {
     const next_day = getNextDay(b);
 
     addNextDayStep(b, next_day);
-    addTestDaySteps(b, next_day);
     const download_all_step = addDownloadAllStep(b, next_day).?;
+    addTestDaySteps(b, next_day, download_all_step);
     run_step.dependOn(download_all_step);
 }
 
@@ -61,7 +61,7 @@ fn addNextDayStep(b: *std.Build, next_day: usize) void {
     new_step.dependOn(&include_step.step);
 }
 
-fn addTestDaySteps(b: *std.Build, next_day: usize) void {
+fn addTestDaySteps(b: *std.Build, next_day: usize, dep: *std.Build.Step) void {
     if (next_day == 0) return;
     for (1..next_day) |d| {
         const num = b.fmt("{}", .{d});
@@ -88,12 +88,12 @@ fn addTestDaySteps(b: *std.Build, next_day: usize) void {
             run_cmd.addArgs(args);
         }
 
+        run_unit_tests.step.dependOn(dep);
+        run_cmd.step.dependOn(&run_unit_tests.step);
         const test_step = b.step(day, "Run this day");
         test_step.dependOn(&run_cmd.step);
-        test_step.dependOn(&run_unit_tests.step);
         const test_step2 = b.step(num, "Run this day");
-        test_step2.dependOn(&run_unit_tests.step);
-        test_step2.dependOn(&run_cmd.step);
+        test_step2.dependOn(test_step);
     }
 }
 

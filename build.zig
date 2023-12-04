@@ -52,6 +52,8 @@ fn addNextDayStep(b: *std.Build, next_day: usize) void {
     includes.appendSlice("};\n") catch unreachable;
     const path = b.fmt("{s}/../src/days.zig", .{b.install_path});
     const include_step = b.addWriteFile(path, includes.items);
+    // Dummy step to try avoid cacheing include_step
+    include_step.step.dependOn(&b.addSystemCommand(&.{"touch", "src/days.zig"}).step);
     // Create target
     const new_step = b.step("new", "Create and prepare a dir for the next day");
     new_step.dependOn(&download_step.step);

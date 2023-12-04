@@ -20,8 +20,9 @@ pub fn build(b: *std.Build) void {
     const next_day = getNextDay(b);
 
     addNextDayStep(b, next_day);
-
     addTestDaySteps(b, next_day);
+    const download_all_step = addDownloadAllStep(b, next_day).?;
+    run_step.dependOn(download_all_step);
 }
 
 fn getNextDay(b: *std.Build) usize {
@@ -34,11 +35,10 @@ fn getNextDay(b: *std.Build) usize {
 }
 
 fn addNextDayStep(b: *std.Build, next_day: usize) void {
-    var buf: [20]u8 = undefined;
     // Download input
-    const download_step = b.addSystemCommand(&.{ "./download", std.fmt.bufPrint(&buf, "{}", .{next_day}) catch return });
+    const download_step = b.addSystemCommand(&.{ "./download", b.fmt("{}", .{next_day}) });
     // Add template
-    const template_step = b.addSystemCommand(&.{ "cp", "template.zig", std.fmt.bufPrint(&buf, "src/day{}.zig", .{next_day}) catch return });
+    const template_step = b.addSystemCommand(&.{ "cp", "template.zig", b.fmt("src/day{}.zig", .{next_day}) });
     // Create include file
     var includes = std.ArrayList(u8).init(b.allocator);
     defer includes.deinit();
@@ -50,7 +50,7 @@ fn addNextDayStep(b: *std.Build, next_day: usize) void {
         includes.appendSlice(".zig\"), ") catch unreachable;
     }
     includes.appendSlice("};\n") catch unreachable;
-    const path = std.fmt.allocPrint(b.allocator, "{s}/../src/days.zig", .{b.install_path}) catch unreachable;
+    const path = b.fmt("{s}/../src/days.zig", .{b.install_path});
     const include_step = b.addWriteFile(path, includes.items);
     // Create target
     const new_step = b.step("new", "Create and prepare a dir for the next day");
@@ -62,11 +62,11 @@ fn addNextDayStep(b: *std.Build, next_day: usize) void {
 fn addTestDaySteps(b: *std.Build, next_day: usize) void {
     if (next_day == 0) return;
     for (1..next_day) |d| {
-        const num = std.fmt.allocPrint(b.allocator, "{}", .{d}) catch unreachable;
+        const num = b.fmt("{}", .{d});
         defer b.allocator.free(num);
-        const day = std.fmt.allocPrint(b.allocator, "day{}", .{d}) catch unreachable;
+        const day = b.fmt("day{}", .{d});
         defer b.allocator.free(day);
-        const file = std.fmt.allocPrint(b.allocator, "src/day{}.zig", .{d}) catch unreachable;
+        const file = b.fmt("src/day{}.zig", .{d});
         defer b.allocator.free(file);
 
         const unit_tests = b.addTest(.{
@@ -93,4 +93,28 @@ fn addTestDaySteps(b: *std.Build, next_day: usize) void {
         test_step2.dependOn(&run_unit_tests.step);
         test_step2.dependOn(&run_cmd.step);
     }
+}
+
+fn addDownloadAllStep(b: *std.Build, next_day: usize) ?*std.Build.Step {
+    if (next_day == 0) return null;
+
+    var cwd = std.fs.cwd().openDir(".", .{}) catch unreachable;
+    defer cwd.close();
+
+    var buf: [20]u8 = undefined;
+    _ = buf;
+    const download_step = b.step("download_all", "Download all inputs");
+    const create_dir = b.addSystemCommand(&.{
+        "mkdir",
+        "-p",
+        "src/inputs",
+    });
+    for (1..next_day) |d| {
+        cwd.access(b.fmt("src/inputs/day{}", .{d}), .{}) catch {
+            const download_day = b.addSystemCommand(&.{ "./download", b.fmt("{}", .{d}) });
+            download_day.step.dependOn(&create_dir.step);
+            download_step.dependOn(&download_day.step);
+        };
+    }
+    return download_step;
 }

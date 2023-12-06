@@ -38,8 +38,8 @@ test "test1" {
     try std.testing.expectEqual(res.p1, 0);
 }
 
-test "test2" {
-    const test_input2 = "";
-    const res = try solve(test_input2);
-    try std.testing.expectEqual(res.p2, 0);
-}
+// test "test2" {
+//     const test_input2 = "";
+//     const res = try solve(test_input2);
+//     try std.testing.expectEqual(res.p2, 0);
+// }

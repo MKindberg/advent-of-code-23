@@ -51,11 +51,8 @@ fn sortMapsEnd(context: void, a: Map, b: Map) bool {
     return std.sort.asc(usize)(context, a.from.start, b.from.start);
 }
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-const alloc = gpa.allocator();
-
-fn parseSeeds(line: []const u8) std.ArrayList(Range) {
-    var seeds = std.ArrayList(Range).init(alloc);
+fn parseSeeds(allocator: std.mem.Allocator, line: []const u8) std.ArrayList(Range) {
+    var seeds = std.ArrayList(Range).init(allocator);
     var parts = std.mem.tokenizeScalar(u8, line, ' ');
     _ = parts.next();
     while (parts.next()) |part| {
@@ -65,8 +62,8 @@ fn parseSeeds(line: []const u8) std.ArrayList(Range) {
     return seeds;
 }
 
-fn parseSeeds2(line: []const u8) std.ArrayList(Range) {
-    var seeds = std.ArrayList(Range).init(alloc);
+fn parseSeeds2(allocator: std.mem.Allocator, line: []const u8) std.ArrayList(Range) {
+    var seeds = std.ArrayList(Range).init(allocator);
     var parts = std.mem.tokenizeScalar(u8, line, ' ');
     _ = parts.next();
     while (parts.next()) |part| {
@@ -77,8 +74,8 @@ fn parseSeeds2(line: []const u8) std.ArrayList(Range) {
     return seeds;
 }
 
-fn parseMap(lines: *std.mem.TokenIterator(u8, .scalar)) std.ArrayList(Map) {
-    var maps = std.ArrayList(Map).init(alloc);
+fn parseMap(allocator: std.mem.Allocator, lines: *std.mem.TokenIterator(u8, .scalar)) std.ArrayList(Map) {
+    var maps = std.ArrayList(Map).init(allocator);
     while (lines.next()) |line| {
         if (!std.ascii.isDigit(line[0])) break;
         var parts = std.mem.tokenizeScalar(u8, line, ' ');
@@ -91,9 +88,9 @@ fn parseMap(lines: *std.mem.TokenIterator(u8, .scalar)) std.ArrayList(Map) {
     return maps;
 }
 
-fn transform(maps: std.ArrayList(Map), item: Range) std.ArrayList(Range) {
+fn transform(allocator: std.mem.Allocator, maps: std.ArrayList(Map), item: Range) std.ArrayList(Range) {
     var i = item;
-    var res = std.ArrayList(Range).init(alloc);
+    var res = std.ArrayList(Range).init(allocator);
     for (maps.items) |map| {
         if (map.from.split(i)) |splits| {
             if (splits[0]) |r| {
@@ -108,16 +105,18 @@ fn transform(maps: std.ArrayList(Map), item: Range) std.ArrayList(Range) {
     return res;
 }
 
-fn transformSeeds(maps: std.ArrayList(Map), seeds: std.ArrayList(Range)) std.ArrayList(Range) {
-    var new_seed = std.ArrayList(Range).init(alloc);
+fn transformSeeds(allocator: std.mem.Allocator, maps: std.ArrayList(Map), seeds: std.ArrayList(Range)) std.ArrayList(Range) {
+    var new_seed = std.ArrayList(Range).init(allocator);
     for (seeds.items) |seed| {
-        new_seed.appendSlice(transform(maps, seed).items) catch unreachable;
+        var t = transform(allocator, maps, seed);
+        defer t.deinit();
+        new_seed.appendSlice(t.items) catch unreachable;
     }
     seeds.deinit();
     return new_seed;
 }
 
-pub fn solve(input: []const u8) !Result {
+pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
     var res = Result{ .p1 = 0, .p2 = 0 };
     var lines = std.mem.tokenizeScalar(u8, input, '\n');
 
@@ -126,15 +125,15 @@ pub fn solve(input: []const u8) !Result {
         m.deinit();
     };
     const seed_line = lines.next().?;
-    var seeds = parseSeeds(seed_line);
+    var seeds = parseSeeds(allocator, seed_line);
     defer seeds.deinit();
-    var seeds2 = parseSeeds2(seed_line);
+    var seeds2 = parseSeeds2(allocator, seed_line);
     defer seeds2.deinit();
     _ = lines.next();
     for (0..7) |i| {
-        maps[i] = parseMap(&lines);
-        seeds = transformSeeds(maps[i], seeds);
-        seeds2 = transformSeeds(maps[i], seeds2);
+        maps[i] = parseMap(allocator, &lines);
+        seeds = transformSeeds(allocator, maps[i], seeds);
+        seeds2 = transformSeeds(allocator, maps[i], seeds2);
     }
     res.p1 = seeds.items[0].start;
     for (seeds.items) |seed| {
@@ -151,16 +150,19 @@ pub fn getInput() []const u8 {
     return @embedFile("inputs/" ++ @typeName(@This()));
 }
 
-pub fn readInput(path: []const u8) []const u8 {
+pub fn readInput(allocator: std.mem.Allocator, path: []const u8) []const u8 {
     const file = std.fs.cwd().openFile(path, .{}) catch @panic("could not open file");
-    return file.readToEndAlloc(alloc, file.getEndPos() catch @panic("could not read file")) catch @panic("could not read file");
+    return file.readToEndAlloc(allocator, file.getEndPos() catch @panic("could not read file")) catch @panic("could not read file");
 }
 
 pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
     var args = std.process.args();
     _ = args.skip();
-    const input = if (args.next()) |path| readInput(path) else getInput();
-    const res = try solve(input);
+    const input = if (args.next()) |path| readInput(allocator, path) else getInput();
+    const res = try solve(allocator, input);
     std.debug.print("\nPart 1: {}\n", .{res.p1});
     std.debug.print("Part 2: {}\n", .{res.p2});
 }
@@ -214,7 +216,7 @@ test "test transform" {
     try m.append(Map{ .from = Range.init(2, 4), .to = Range.init(3, 6) });
     try m.append(Map{ .from = Range.init(5, 6), .to = Range.init(9, 10) });
     const r = Range.init(1, 7);
-    const res = transform(m, r);
+    const res = transform(std.testing.allocator, m, r);
     defer res.deinit();
 }
 
@@ -255,11 +257,11 @@ const test_input =
 ;
 
 test "test1" {
-    const res = try solve(test_input);
+    const res = try solve(std.testing.allocator, test_input);
     try std.testing.expectEqual(res.p1, 35);
 }
 
 test "test2" {
-    const res = try solve(test_input);
+    const res = try solve(std.testing.allocator, test_input);
     try std.testing.expectEqual(res.p2, 46);
 }

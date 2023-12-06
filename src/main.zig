@@ -1,6 +1,9 @@
 const std = @import("std");
 const days = @import("days.zig").days;
 
+var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+const allocator = gpa.allocator();
+
 fn printTimeDiff(diff: i128) void {
     var d = diff;
     if (d > std.time.ns_per_s) {
@@ -24,8 +27,11 @@ pub fn main() !void {
     var total_time: i128 = 0;
     if (d == 0) {
         inline for (days, 1..) |day, i| {
+            var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+            defer arena.deinit();
+
             const start = std.time.nanoTimestamp();
-            const res = try day.solve(day.getInput());
+            const res = try day.solve(arena.allocator(), day.getInput());
             const stop = std.time.nanoTimestamp();
             const diff = stop - start;
             total_time += diff;
@@ -44,8 +50,11 @@ pub fn main() !void {
         inline for (days, 1..) |day, i| {
             if (i == d) {
                 for (0..n) |_| {
+                    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+                    defer arena.deinit();
+
                     const start = std.time.nanoTimestamp();
-                    const res = try day.solve(day.getInput());
+                    const res = try day.solve(arena.allocator(), day.getInput());
                     _ = res;
                     const stop = std.time.nanoTimestamp();
                     const diff = stop - start;

@@ -25,7 +25,8 @@ fn mergeNum(nums: []usize) usize {
     return std.fmt.parseInt(usize, str_num, 10) catch unreachable;
 }
 
-pub fn solve(input: []const u8) !Result {
+pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
+    _ = allocator;
     var res = Result{ .p1 = 0, .p2 = 0 };
     var lines = std.mem.tokenizeScalar(u8, input, '\n');
 
@@ -69,7 +70,7 @@ pub fn main() !void {
     var args = std.process.args();
     _ = args.skip();
     const input = if (args.next()) |path| readInput(path) else getInput();
-    const res = try solve(input);
+    const res = try solve(alloc, input);
     std.debug.print("\nPart 1: {}\n", .{res.p1});
     std.debug.print("Part 2: {}\n", .{res.p2});
 }
@@ -84,7 +85,7 @@ test "test1" {
         \\Distance:  9  40  200
     ;
 
-    const res = try solve(test_input1);
+    const res = try solve(std.testing.allocator, test_input1);
     try std.testing.expectEqual(res.p1, 288);
 }
 
@@ -93,6 +94,6 @@ test "test2" {
         \\Time:      7  15   30
         \\Distance:  9  40  200
     ;
-    const res = try solve(test_input2);
+    const res = try solve(std.testing.allocator, test_input2);
     try std.testing.expectEqual(res.p2, 71503);
 }

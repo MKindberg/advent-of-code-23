@@ -38,7 +38,8 @@ fn parseTicket(ticket: []const u8) usize {
     return wins;
 }
 
-pub fn solve(input: []const u8) !Result {
+pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
+    _ = allocator;
     var buf: [300 * 8]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buf);
     const fba_allocator = fba.allocator();
@@ -79,7 +80,7 @@ pub fn main() !void {
     var args = std.process.args();
     _ = args.skip();
     const input = if (args.next()) |path| readInput(path) else getInput();
-    const res = try solve(input);
+    const res = try solve(alloc, input);
     std.debug.print("\nPart 1: {}\n", .{res.p1});
     std.debug.print("Part 2: {}\n", .{res.p2});
 }
@@ -94,7 +95,7 @@ test "test1" {
         \\Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11
     ;
 
-    const res = try solve(test_input1);
+    const res = try solve(std.testing.allocator, test_input1);
     try std.testing.expectEqual(res.p1, 13);
 }
 
@@ -107,6 +108,6 @@ test "test2" {
         \\Card 5: 87 83 26 28 32 | 88 30 70 12 93 22 82 36
         \\Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11
     ;
-    const res = try solve(test_input2);
+    const res = try solve(std.testing.allocator, test_input2);
     try std.testing.expectEqual(res.p2, 30);
 }

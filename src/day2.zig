@@ -25,7 +25,8 @@ fn parseLine(line: []const u8) Colors {
     return col;
 }
 
-pub fn solve(input: []const u8) !Result {
+pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
+    _ = allocator;
     var res = Result{ .p1 = 0, .p2 = 0 };
     var game_num: usize = 0;
     var lines = std.mem.tokenizeScalar(u8, input, '\n');
@@ -54,7 +55,7 @@ pub fn main() !void {
     var args = std.process.args();
     _ = args.skip();
     const input = if (args.next()) |path| readInput(path) else getInput();
-    const res = try solve(input);
+    const res = try solve(alloc, input);
     std.debug.print("Part 1: {}\n", .{res.p1});
     std.debug.print("Part 2: {}\n", .{res.p2});
 }

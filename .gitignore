@@ -4,3 +4,6 @@ zig-out
 src/inputs
 
 cookie.txt
+
+input
+today.zig

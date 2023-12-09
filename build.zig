@@ -39,6 +39,10 @@ fn addNextDayStep(b: *std.Build, next_day: usize) void {
     const download_step = b.addSystemCommand(&.{ "./download", b.fmt("{}", .{next_day}) });
     // Add template
     const template_step = b.addSystemCommand(&.{ "cp", "template.zig", b.fmt("src/day{}.zig", .{next_day}) });
+    // Create links to today in the root
+    const link_code_step = b.addSystemCommand(&.{ "ln", "-fs", b.fmt("src/day{}.zig", .{next_day}), "today.zig" });
+    const link_input_step = b.addSystemCommand(&.{ "ln", "-fs", b.fmt("src/inputs/day{}", .{next_day}), "input" });
+    link_input_step.step.dependOn(&download_step.step);
     // Create include file
     var includes = std.ArrayList(u8).init(b.allocator);
     defer includes.deinit();
@@ -53,9 +57,12 @@ fn addNextDayStep(b: *std.Build, next_day: usize) void {
     const path = b.fmt("{s}/../src/days.zig", .{b.install_path});
     const include_step = b.addWriteFile(path, includes.items);
     // Dummy step to try avoid cacheing include_step
-    include_step.step.dependOn(&b.addSystemCommand(&.{"touch", "src/days.zig"}).step);
+    include_step.step.dependOn(&b.addSystemCommand(&.{ "touch", "src/days.zig" }).step);
     // Create target
     const new_step = b.step("new", "Create and prepare a dir for the next day");
+
+    new_step.dependOn(&link_code_step.step);
+    new_step.dependOn(&link_input_step.step);
     new_step.dependOn(&download_step.step);
     new_step.dependOn(&template_step.step);
     new_step.dependOn(&include_step.step);
@@ -94,6 +101,10 @@ fn addTestDaySteps(b: *std.Build, next_day: usize, dep: *std.Build.Step) void {
         test_step.dependOn(&run_cmd.step);
         const test_step2 = b.step(num, "Run this day");
         test_step2.dependOn(test_step);
+
+        if (d == next_day - 1) {
+            b.default_step = (test_step);
+        }
     }
 }
 

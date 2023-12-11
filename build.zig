@@ -50,7 +50,7 @@ fn addNextDayStep(b: *std.Build, next_day: usize) void {
     includes.appendSlice("pub const days = .{") catch unreachable;
     for (1..next_day + 1) |d| {
         includes.appendSlice("@import(\"day") catch unreachable;
-        includes.append(@as(u8, @truncate(d)) + '0') catch unreachable;
+        includes.appendSlice(b.fmt("{}", .{d})) catch unreachable;
         includes.appendSlice(".zig\"), ") catch unreachable;
     }
     includes.appendSlice("};\n") catch unreachable;

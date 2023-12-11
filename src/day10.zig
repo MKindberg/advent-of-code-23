@@ -5,7 +5,20 @@ const Result = struct { p1: usize, p2: usize };
 const MapType = std.ArrayList([]const u8);
 const Pos = struct { x: usize, y: usize };
 
-const InDir = enum { left, down, right, up };
+const Dir1 = enum {
+    left,
+    down,
+    right,
+    up,
+    fn reverse(d: Dir1) Dir1 {
+        return switch (d) {
+            .left => .right,
+            .down => .up,
+            .right => .left,
+            .up => .down,
+        };
+    }
+};
 
 fn step(map: MapType, prev: Pos, pos: Pos) Pos {
     var p = pos;
@@ -76,7 +89,7 @@ fn getStartDir(map: MapType, start: Pos) Pos {
     unreachable;
 }
 
-fn fillDir(map: MapType, pos: Pos, dir: InDir, ground: *std.AutoHashMap(Pos, void), pipes: *std.AutoHashMap(Pos, void)) void {
+fn fillDir(map: MapType, pos: Pos, dir: Dir1, ground: *std.AutoHashMap(Pos, void), pipes: *std.AutoHashMap(Pos, void)) void {
     var p = pos;
     switch (dir) {
         .up => {
@@ -106,49 +119,21 @@ fn fillDir(map: MapType, pos: Pos, dir: InDir, ground: *std.AutoHashMap(Pos, voi
     }
 }
 
-fn fillGround(map: MapType, pos: Pos, dir: InDir, inside: *std.AutoHashMap(Pos, void), outside: *std.AutoHashMap(Pos, void), pipes: *std.AutoHashMap(Pos, void)) void {
-    switch (dir) {
-        .up => {
-            fillDir(map, pos, dir, inside, pipes);
-            fillDir(map, pos, InDir.down, outside, pipes);
-        },
-        .down => {
-            fillDir(map, pos, dir, inside, pipes);
-            fillDir(map, pos, InDir.up, outside, pipes);
-        },
-        .left => {
-            fillDir(map, pos, dir, inside, pipes);
-            fillDir(map, pos, InDir.right, outside, pipes);
-        },
-        .right => {
-            fillDir(map, pos, dir, inside, pipes);
-            fillDir(map, pos, InDir.left, outside, pipes);
-        },
-    }
+fn fillGround(map: MapType, pos: Pos, dir1: Dir1, side1: *std.AutoHashMap(Pos, void), side2: *std.AutoHashMap(Pos, void), pipes: *std.AutoHashMap(Pos, void)) void {
+    fillDir(map, pos, dir1, side1, pipes);
+    fillDir(map, pos, dir1.reverse(), side2, pipes);
 }
 
-fn nextInDir(pipe: u8, in_dir: InDir) InDir {
+fn nextInDir(pipe: u8, in_dir: Dir1) Dir1 {
     return switch (pipe) {
         '|', '-' => in_dir,
-        'L' => switch (in_dir) {
+        'L', '7' => switch (in_dir) {
             .down => .left,
             .left => .down,
             .up => .right,
             .right => .up,
         },
-        '7' => switch (in_dir) {
-            .down => .left,
-            .left => .down,
-            .up => .right,
-            .right => .up,
-        },
-        'J' => switch (in_dir) {
-            .down => .right,
-            .right => .down,
-            .up => .left,
-            .left => .up,
-        },
-        'F' => switch (in_dir) {
+        'J', 'F' => switch (in_dir) {
             .down => .right,
             .right => .down,
             .up => .left,
@@ -176,11 +161,11 @@ pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
     var pos = getStartDir(map, start);
     var next: Pos = undefined;
 
-    var in_dir: InDir = if (getPipe(map, pos) == '|') .left else .up;
-    var inside = std.AutoHashMap(Pos, void).init(allocator);
-    defer inside.deinit();
-    var outside = std.AutoHashMap(Pos, void).init(allocator);
-    defer outside.deinit();
+    var in_dir: Dir1 = if (getPipe(map, pos) == '|') .left else .up;
+    var side1 = std.AutoHashMap(Pos, void).init(allocator);
+    defer side1.deinit();
+    var side2 = std.AutoHashMap(Pos, void).init(allocator);
+    defer side2.deinit();
     var pipes = std.AutoHashMap(Pos, void).init(allocator);
     defer pipes.deinit();
     pipes.put(start, {}) catch unreachable;
@@ -197,8 +182,8 @@ pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
     }
     res.p1 = @divFloor(count, 2);
 
-    fillGround(map, start, in_dir, &inside, &outside, &pipes);
-    fillGround(map, pos, in_dir, &inside, &outside, &pipes);
+    fillGround(map, start, in_dir, &side1, &side2, &pipes);
+    fillGround(map, pos, in_dir, &side1, &side2, &pipes);
     prev = start;
     pos = getStartDir(map, start);
     while (true) {
@@ -206,16 +191,13 @@ pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
         prev = pos;
         pos = next;
         count += 1;
-        fillGround(map, pos, in_dir, &inside, &outside, &pipes);
+        fillGround(map, pos, in_dir, &side1, &side2, &pipes);
         in_dir = nextInDir(getPipe(map, pos), in_dir);
         if (pos.x == start.x and pos.y == start.y) break;
-        fillGround(map, pos, in_dir, &inside, &outside, &pipes);
+        fillGround(map, pos, in_dir, &side1, &side2, &pipes);
     }
-    if (inside.count() > outside.count()) {
-        var tmp = inside;
-        inside = outside;
-        outside = tmp;
-    }
+    var inside = if (side1.count() > side2.count()) side2 else side1;
+    var outside = if (side1.count() > side2.count()) side1 else side2;
     var it = inside.keyIterator();
     // For some reason the tile under start is added to both lists.
     while (it.next()) |p| {

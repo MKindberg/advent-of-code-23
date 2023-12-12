@@ -4,9 +4,7 @@ const print = std.debug.print;
 const Result = struct { p1: usize, p2: usize };
 const Point = struct { x: usize, y: usize };
 
-const empty_len = 10;
-
-fn diff(empty_x: [empty_len]usize, x_len: usize, empty_y: [empty_len]usize, y_len: usize, g1: Point, g2: Point, expansion: usize) usize {
+fn diff(g1: Point, g2: Point) usize {
     const min_x = @min(g1.x, g2.x);
     const max_x = @max(g1.x, g2.x);
     const min_y = @min(g1.y, g2.y);
@@ -14,15 +12,6 @@ fn diff(empty_x: [empty_len]usize, x_len: usize, empty_y: [empty_len]usize, y_le
 
     var xdiff: usize = max_x - min_x;
     var ydiff: usize = max_y - min_y;
-
-    for (empty_x, 0..) |x, i| {
-        if (i > x_len) break;
-        if (x > min_x and x < max_x) xdiff += expansion - 1;
-    }
-    for (empty_y, 0..) |y, i| {
-        if (i > y_len) break;
-        if (y > min_y and y < max_y) ydiff += expansion - 1;
-    }
 
     return xdiff + ydiff;
 }
@@ -32,9 +21,10 @@ pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
     var lines = std.mem.tokenizeScalar(u8, input, '\n');
     var map = std.ArrayList([]const u8).init(allocator);
     defer map.deinit();
-    var empty_y = std.mem.zeroes([empty_len]usize);
-    var y_len: usize = 0;
-    var empty_x = std.mem.zeroes([empty_len]usize);
+    var empty_y = std.ArrayList(usize).init(allocator);
+    defer empty_y.deinit();
+    var empty_x = std.ArrayList(usize).init(allocator);
+    defer empty_x.deinit();
     var x_len: usize = 0;
 
     {
@@ -42,8 +32,7 @@ pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
         while (lines.next()) |line| {
             try map.append(line);
             if (std.mem.allEqual(u8, line, '.')) {
-                empty_y[y_len] = i;
-                y_len += 1;
+                try empty_y.append(i);
             }
             i += 1;
         }
@@ -51,24 +40,29 @@ pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
             for (map.items) |line| {
                 if (line[y] == '#') break;
             } else {
-                empty_x[x_len] = y;
+                try empty_x.append(y);
                 x_len += 1;
             }
         }
     }
 
-    var galaxies = std.ArrayList(Point).init(allocator);
-    defer galaxies.deinit();
-    for (map.items, 0..) |l, y| {
-        for (l, 0..) |t, x| {
-            if (t == '#') try galaxies.append(Point{ .x = x, .y = y });
+    inline for (.{ "p1", "p2" }, .{ 2, 1000000 }) |part, expansion| {
+        var galaxies = std.ArrayList(Point).init(allocator);
+        defer galaxies.deinit();
+        var yy: usize = 0;
+        for (map.items, 0..) |l, y| {
+            while (yy < empty_y.items.len and y > empty_y.items[yy]) yy += 1;
+            var xx: usize = 0;
+            for (l, 0..) |t, x| {
+                while (xx < empty_x.items.len and x > empty_x.items[xx]) xx += 1;
+                if (t == '#') try galaxies.append(Point{ .x = x + xx * (expansion - 1), .y = y + yy * (expansion - 1) });
+            }
         }
-    }
 
-    for (0..galaxies.items.len) |i| {
-        for (i + 1..galaxies.items.len) |j| {
-            res.p1 += diff(empty_x, x_len, empty_y, y_len, galaxies.items[i], galaxies.items[j], 2);
-            res.p2 += diff(empty_x, x_len, empty_y, y_len, galaxies.items[i], galaxies.items[j], 1000000);
+        for (0..galaxies.items.len) |i| {
+            for (i + 1..galaxies.items.len) |j| {
+                @field(res, part) += diff(galaxies.items[i], galaxies.items[j]);
+            }
         }
     }
     return res;

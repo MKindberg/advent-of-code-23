@@ -4,6 +4,8 @@ const print = std.debug.print;
 const Result = struct { p1: usize, p2: usize };
 
 const State = enum { working, broken, unknown };
+const Key = struct { pos: usize, num: u128 };
+const Cache = std.AutoHashMap(Key, usize);
 
 fn printSprings(springs: []State) void {
     for (springs) |s| {
@@ -38,66 +40,47 @@ fn parseSprings(allocator: std.mem.Allocator, springs: []const u8) std.ArrayList
     return res;
 }
 
-fn isValid(num_broken: []usize, springs: []State) bool {
-    var broken_groups = std.mem.tokenizeScalar(State, springs, .working);
+fn hashBrokenNum(num_broken: []usize) u128 {
+    var hash: u128 = 0;
     for (num_broken) |n| {
-        const group = broken_groups.next() orelse return false;
-        if (group.len != n) return false;
+        hash *= 10;
+        hash += n;
     }
-    return broken_groups.next() == null;
+    return hash;
 }
 
-fn search2(num_broken: []usize, spring_groups: [][]const u8, current_group: []const u8) usize {
-    if (spring_groups.len == 0 and current_group.len == 0 and num_broken.len == 0) return 1;
+fn search(num_broken: []usize, springs: []State, cache: *Cache, pos: usize) usize {
+    // const key = Key{ .pos = pos, .num = hashBrokenNum(num_broken) };
+    // if (cache.get(key)) |v| return v;
     if (num_broken.len == 0) {
-        if (std.mem.indexOfScalar(u8, current_group, '#') != null) return 0;
-        for (spring_groups) |g| {
-            if (std.mem.indexOfScalar(u8, g, '#') != null) return 0;
-        }
-        return 1;
+        if (std.mem.indexOfScalar(State, springs, .broken) == null) return 1;
+        return 0;
     }
-    if (current_group.len == num_broken[0]) {
-        if (spring_groups.len == 0) {
+    if (std.mem.allEqual(State, springs, .working)) return 0;
+    if (springs.len == 0) {
+        return 0;
+    }
+    var count: usize = 0;
+    var i: usize = 0;
+    while (i < springs.len and springs[i] == .working) i += 1;
+    if (i == springs.len) return 0;
+    if (springs[i] == .broken) {
+        if (i + num_broken[0] > springs.len) return 0;
+        if (std.mem.indexOfScalar(State, springs[i .. i + num_broken[0]], .working) != null) return 0;
+        if (i + num_broken[0] == springs.len) {
             if (num_broken.len == 1) return 1;
             return 0;
         }
-        return search2(num_broken[1..], spring_groups[1..], spring_groups[0]);
-    } else if (current_group.len > num_broken[0]) {
-        if (current_group[0] == '?') {
-            if (current_group.len == num_broken[0] + 1) {
-                if (spring_groups.len == 0) {
-                    if (num_broken.len == 1) return 1;
-                    return 0;
-                }
-                return search2(num_broken[1..], spring_groups[1..], spring_groups[0]);
-            }
-            return search2(num_broken[1..], spring_groups, current_group[num_broken[0] + 1 ..]) +
-                search2(num_broken, spring_groups, current_group[1..]);
-        } else {
-            return search2(num_broken[1..], spring_groups, current_group[num_broken[0]..]);
-        }
+        if (springs[i + num_broken[0]] == .broken) return 0;
+        count += search(num_broken[1..], springs[i + num_broken[0] + 1 ..], cache, pos + i + num_broken[0] + 1);
     } else {
-        if (std.mem.indexOfScalar(u8, current_group, '#') == null) return search2(num_broken, spring_groups[1..], spring_groups[0]);
-        return 0;
-    }
-}
-
-fn search(num_broken: []usize, springs: []State, max_broken: usize) usize {
-    var count: usize = 0;
-    if (std.mem.indexOfScalar(State, springs, .unknown)) |i| {
-        if (std.mem.count(State, springs, &[_]State{.broken}) > max_broken) {
-            return 0;
-        }
-        if (!(springs[i -| 1] == .working and springs[@min(i + 1, springs.len - 1)] == .working)) {
-            springs[i] = .working;
-            count += search(num_broken, springs, max_broken);
-        }
+        springs[i] = .working;
+        count += search(num_broken, springs[i..], cache, i);
         springs[i] = .broken;
-        count += search(num_broken, springs, max_broken);
+        count += search(num_broken, springs[i..], cache, i);
         springs[i] = .unknown;
-    } else {
-        return if (isValid(num_broken, springs)) 1 else 0;
     }
+    // cache.put(key, count) catch unreachable;
     return count;
 }
 
@@ -123,32 +106,21 @@ pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
     var lines = std.mem.tokenizeScalar(u8, input, '\n');
     while (lines.next()) |line| {
         var parts = std.mem.splitScalar(u8, line, ' ');
-        var springs3 = std.ArrayList([]const u8).init(allocator);
-        defer springs3.deinit();
-
-        var pp = std.mem.splitScalar(u8, parts.next().?, '.');
-        while (pp.next()) |p| {
-            springs3.append(p) catch unreachable;
-        }
-        // const springs = parseSprings(allocator, parts.next().?);
-        // defer springs.deinit();
-        // const springs2 = duplicateSprings(allocator, springs.items);
-        // defer springs2.deinit();
+        const springs = parseSprings(allocator, parts.next().?);
+        defer springs.deinit();
+        const springs2 = duplicateSprings(allocator, springs.items);
+        defer springs2.deinit();
         const num_broken = parseBrokenNum(allocator, parts.next().?);
         defer num_broken.deinit();
-        // const num_broken2 = duplicateBrokenNum(allocator, num_broken.items);
-        // defer num_broken2.deinit();
+        const num_broken2 = duplicateBrokenNum(allocator, num_broken.items);
+        defer num_broken2.deinit();
 
-        const b = search2(num_broken.items, springs3.items[1..], springs3.items[0]);
-        std.debug.print("{}\n", .{b});
-        // var max_broken: usize = 0;
-        // for (num_broken2.items) |n| max_broken += n;
-        // const a = search(num_broken.items, springs.items, max_broken);
-        // res.p1 += a;
-        // const b = search(num_broken2.items, springs2.items, max_broken);
-        // const e = std.math.pow(usize, @divTrunc(b, a), 4);
-        // res.p2 += a * e;
-        // print("a: {}\n", .{a});
+        var cache = Cache.init(allocator);
+        defer cache.deinit();
+        const a = search(num_broken.items, springs.items, &cache, 0);
+        res.p1 += a;
+        const b = search(num_broken2.items, springs2.items, &cache, 0);
+        res.p2 += b;
     }
     return res;
 }
@@ -183,6 +155,24 @@ const test_input =
     \\?###???????? 3,2,1
 ;
 
+const test_inputs = [_][]const u8{
+    "???.### 1,1,3",
+    ".??..??...?##. 1,1,3",
+    "?#?#?#?#?#?#?#? 1,3,1,6",
+    "????.#...#... 4,1,1",
+    "????.######..#####. 1,6,5",
+    "?###???????? 3,2,1",
+};
+const test_results = [_]usize{ 1, 4, 1, 1, 4, 10 };
+
+test "test1.lines" {
+    for (0..6) |i| {
+        std.debug.print("inp: {s}\n", .{test_inputs[i]});
+        const res = try solve(std.testing.allocator, test_inputs[i]);
+        try std.testing.expectEqual(res.p1, test_results[i]);
+    }
+}
+
 test "test1" {
     const res = try solve(std.testing.allocator, test_input);
     try std.testing.expectEqual(res.p1, 21);
@@ -191,15 +181,4 @@ test "test1" {
 test "test2" {
     const res = try solve(std.testing.allocator, test_input);
     try std.testing.expectEqual(res.p2, 525152);
-}
-
-test "test3" {
-    const test_input2 = "????.######..#####. 1,6,5";
-    const res = try solve(std.testing.allocator, test_input2);
-    try std.testing.expectEqual(res.p2, 2500);
-}
-test "test4" {
-    const test_input2 = "?#?#?#?#?#?#?#? 1,3,1,6";
-    const res = try solve(std.testing.allocator, test_input2);
-    try std.testing.expectEqual(res.p2, 1);
 }

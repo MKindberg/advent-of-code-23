@@ -14,7 +14,7 @@ pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
 }
 
 pub fn getInput() []const u8 {
-    return @embedFile("inputs/" ++ @typeName(@This()));
+    return comptime std.mem.trim(u8, @embedFile("inputs/" ++ @typeName(@This())), "\n");
 }
 
 pub fn readInput(allocator: std.mem.Allocator, path: []const u8) []const u8 {

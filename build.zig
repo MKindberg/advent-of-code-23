@@ -61,6 +61,11 @@ fn addNextDayStep(b: *std.Build, next_day: usize) void {
     // Create target
     const new_step = b.step("new", "Create and prepare a dir for the next day");
 
+    const link_step = b.step("link", "Create symlinks in root to todays code");
+
+    link_step.dependOn(&link_code_step.step);
+    link_step.dependOn(&link_input_step.step);
+
     new_step.dependOn(&link_code_step.step);
     new_step.dependOn(&link_input_step.step);
     new_step.dependOn(&download_step.step);

@@ -1,6 +1,8 @@
 const std = @import("std");
 const days = @import("days.zig").days;
 
+const skip = [_]usize{ 17, 18 };
+
 fn printTimeDiff(diff: i128) void {
     var d = diff;
     if (d > std.time.ns_per_s) {
@@ -31,7 +33,12 @@ pub fn main() !void {
     const n = std.fmt.parseInt(usize, args.next() orelse "1", 10) catch @panic("Second arg must be an integer");
     var total_time: i128 = 0;
     if (d == 0) {
-        inline for (days, 1..) |day, i| {
+        outer: inline for (days, 1..) |day, i| {
+            inline for (skip) |s| {
+                if (i == s) {
+                    continue :outer;
+                }
+            }
             var test_time: i128 = 0;
             for (0..n) |_| {
                 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);

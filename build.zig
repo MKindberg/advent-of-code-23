@@ -23,6 +23,12 @@ pub fn build(b: *std.Build) void {
     const download_all_step = addDownloadAllStep(b, next_day).?;
     addTestDaySteps(b, next_day, download_all_step);
     run_step.dependOn(download_all_step);
+
+    const link_code_step = b.addSystemCommand(&.{ "ln", "-fs", b.fmt("src/day{}.zig", .{next_day-1}), "today.zig" });
+    const link_input_step = b.addSystemCommand(&.{ "ln", "-fs", b.fmt("src/inputs/day{}", .{next_day-1}), "input" });
+    const link_step = b.step("link", "Create symlinks in root to todays code");
+    link_step.dependOn(&link_code_step.step);
+    link_step.dependOn(&link_input_step.step);
 }
 
 fn getNextDay(b: *std.Build) usize {
@@ -60,11 +66,6 @@ fn addNextDayStep(b: *std.Build, next_day: usize) void {
     include_step.step.dependOn(&b.addSystemCommand(&.{ "touch", "src/days.zig" }).step);
     // Create target
     const new_step = b.step("new", "Create and prepare a dir for the next day");
-
-    const link_step = b.step("link", "Create symlinks in root to todays code");
-
-    link_step.dependOn(&link_code_step.step);
-    link_step.dependOn(&link_input_step.step);
 
     new_step.dependOn(&link_code_step.step);
     new_step.dependOn(&link_input_step.step);

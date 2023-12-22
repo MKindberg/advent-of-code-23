@@ -75,7 +75,7 @@ pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
         }
     }
 
-    var visited = Cache.initCapacity(allocator);
+    var visited = Cache.initCapacity(allocator, 1000) catch unreachable;
     defer visited.deinit();
     walk(map.items, &visited, start, 0);
     res.p1 = visited.items.len;

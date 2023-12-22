@@ -14,6 +14,9 @@ const Point = struct {
             .z = std.fmt.parseInt(usize, tok.next().?, 10) catch unreachable,
         };
     }
+    fn eql(self: Point, other: Point) bool {
+        return self.x == other.x and self.y == other.y and self.z == other.z;
+    }
 };
 const Brick = struct {
     p1: Point,
@@ -25,6 +28,9 @@ const Brick = struct {
             .p2 = Point.parse(str[del + 1 ..]),
         };
     }
+    fn eql(self: Brick, other: Brick) bool {
+        return self.p1.eql(other.p1) and self.p2.eql(other.p2);
+    }
     fn overlapsX(self: Brick, other: Brick) bool {
         return (self.p1.x <= other.p1.x and other.p1.x <= self.p2.x) or
             (other.p1.x <= self.p1.x and self.p1.x <= other.p2.x);
@@ -32,6 +38,9 @@ const Brick = struct {
     fn overlapsY(self: Brick, other: Brick) bool {
         return (self.p1.y <= other.p1.y and other.p1.y <= self.p2.y) or
             (other.p1.y <= self.p1.y and self.p1.y <= other.p2.y);
+    }
+    fn sortZ(_: void, self: Brick, other: Brick) bool {
+        return std.sort.asc(usize)({}, self.p1.z, other.p1.z);
     }
     fn drop(self: *Brick, bricks: []Brick) void {
         var z: usize = 1;
@@ -63,6 +72,27 @@ const Brick = struct {
     }
 };
 
+fn isRemovable(allocator: std.mem.Allocator, bricks: []Brick, removed: []Brick, brick: Brick) bool {
+    var below = brick.below(allocator, bricks);
+    defer below.deinit();
+    for (below.items) |b| {
+        for (removed) |r| {
+            if (b.eql(r)) break;
+        } else return false;
+    }
+    return true;
+}
+
+fn remove(allocator: std.mem.Allocator, bricks: []Brick, removed: *std.ArrayList(Brick), brick: Brick) void {
+    var above = brick.above(allocator, bricks);
+    defer above.deinit();
+    for (above.items) |b| {
+        if (!isRemovable(allocator, bricks, removed.items, b)) continue;
+        removed.append(b) catch unreachable;
+        remove(allocator, bricks, removed, b);
+    }
+}
+
 pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
     var res = Result{ .p1 = 0, .p2 = 0 };
     var lines = std.mem.tokenizeScalar(u8, input, '\n');
@@ -71,33 +101,20 @@ pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
     while (lines.next()) |line| {
         try bricks.append(Brick.parse(line));
     }
+    std.mem.sort(Brick, bricks.items, {}, Brick.sortZ);
     for (bricks.items) |*brick| {
         brick.drop(bricks.items);
     }
 
-    var removable = std.AutoHashMap(Brick, void).init(allocator);
-    defer removable.deinit();
-    var non_removable = std.AutoHashMap(Brick, void).init(allocator);
-    defer non_removable.deinit();
+    var removed = std.ArrayList(Brick).init(allocator);
+    defer removed.deinit();
     for (bricks.items) |brick| {
-        var above = brick.above(allocator, bricks.items);
-        defer above.deinit();
-        var below = brick.below(allocator, bricks.items);
-        defer below.deinit();
-        if (above.items.len == 0) try removable.put(brick, {});
-        if (below.items.len > 1) {
-            for (below.items) |b| {
-                try removable.put(b, {});
-            }
-        } else if (below.items.len == 1) {
-            try non_removable.put(below.items[0], {});
-        }
+        removed.append(brick) catch unreachable;
+        remove(allocator, bricks.items, &removed, brick);
+        if (removed.items.len == 1) res.p1 += 1;
+        res.p2 += removed.items.len - 1;
+        removed.clearRetainingCapacity();
     }
-    var it = non_removable.keyIterator();
-    while (it.next()) |brick| {
-        _ = removable.remove(brick.*);
-    }
-    res.p1 = removable.count();
     return res;
 }
 
@@ -129,22 +146,21 @@ test "test_overlap" {
     try std.testing.expect(b1.overlapsX(b2));
 }
 
+const test_input =
+    \\1,0,1~1,2,1
+    \\0,0,2~2,0,2
+    \\0,2,3~2,2,3
+    \\0,0,4~0,2,4
+    \\2,0,5~2,2,5
+    \\0,1,6~2,1,6
+    \\1,1,8~1,1,9
+;
 test "test1" {
-    const test_input =
-        \\1,0,1~1,2,1
-        \\0,0,2~2,0,2
-        \\0,2,3~2,2,3
-        \\0,0,4~0,2,4
-        \\2,0,5~2,2,5
-        \\0,1,6~2,1,6
-        \\1,1,8~1,1,9
-    ;
     const res = try solve(std.testing.allocator, test_input);
     try std.testing.expectEqual(res.p1, 5);
 }
 
-// test "test2" {
-//     const test_input = "";
-//     const res = try solve(std.testing.allocator, test_input);
-//     try std.testing.expectEqual(res.p2, 0);
-// }
+test "test2" {
+    const res = try solve(std.testing.allocator, test_input);
+    try std.testing.expectEqual(res.p2, 7);
+}

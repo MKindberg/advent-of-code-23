@@ -2,82 +2,67 @@ const std = @import("std");
 const print = std.debug.print;
 
 const Result = struct { p1: usize, p2: usize };
-const Point = struct { x: isize, y: isize };
-const HoleType = std.AutoHashMap(Point, void);
-const Edges = struct { minX: isize, minY: isize, maxX: isize, maxY: isize };
+const Point = struct { x: i32, y: i32 };
 
-fn dig(hole: *HoleType, current: *Point, dir: u8, len: usize) void {
-    var c = current;
-    for (0..len) |_| {
-        switch (dir) {
-            'U' => c.y += 1,
-            'D' => c.y -= 1,
-            'L' => c.x -= 1,
-            'R' => c.x += 1,
-            else => unreachable,
-        }
-        hole.put(c.*, {}) catch unreachable;
-    }
+fn sortPointsY(_: void, a: Point, b: Point) bool {
+    return std.sort.asc(i32)({}, a.y, b.y);
+}
+fn sortPointsX(_: void, a: Point, b: Point) bool {
+    return std.sort.asc(i32)({}, a.x, b.x);
 }
 
-fn inside(hole: *HoleType, edges: Edges, p: Point) bool {
-    var y = p.y;
-    while (y >= edges.minY) : (y -= 1) {
-        if (hole.get(Point{ .x = p.x, .y = y }) != null) break;
-    } else return false;
-
-    y = p.y;
-    while (y <= edges.maxY) : (y += 1) {
-        if (hole.get(Point{ .x = p.x, .y = y }) != null) break;
-    } else return false;
-
-    var x = p.x;
-    while (x >= edges.minX) : (x -= 1) {
-        if (hole.get(Point{ .x = x, .y = p.y }) != null) break;
-    } else return false;
-    x = p.x;
-    while (x <= edges.maxX) : (x += 1) {
-        if (hole.get(Point{ .x = x, .y = p.y }) != null) break;
-    } else return false;
-
-    return true;
-}
-
-fn fill(hole: *HoleType, edges: Edges) void {
-    var y = edges.minY;
-    while (y <= edges.maxY) : (y += 1) {
-        var x = edges.minX;
-        while (x <= edges.maxX) : (x += 1) {
-            if (hole.get(Point{ .x = x, .y = y }) != null) continue;
-            if (inside(hole, edges, Point{ .x = x, .y = y }))
-                hole.put(Point{ .x = x, .y = y }, {}) catch unreachable;
-        }
+fn sameY(p: Point, points: []Point) ?Point {
+    for (points) |pp| {
+        if (p.y == pp.y) return pp;
     }
+    return null;
+}
+fn sameX(p: Point, points: []Point) ?Point {
+    for (points) |pp| {
+        if (p.y == pp.y) return pp;
+    }
+    return null;
 }
 
 pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
     var res = Result{ .p1 = 0, .p2 = 0 };
     var lines = std.mem.tokenizeScalar(u8, input, '\n');
 
-    var hole = HoleType.init(allocator);
-    defer hole.deinit();
+    var points = std.ArrayList(Point).init(allocator);
+    defer points.deinit();
     var current = Point{ .x = 0, .y = 0 };
-    try hole.put(current, {});
-    var e = Edges{ .minX = 0, .minY = 0, .maxX = 0, .maxY = 0 };
+    try points.append(current);
     while (lines.next()) |line| {
         var parts = std.mem.tokenizeScalar(u8, line, ' ');
         const dir = parts.next().?[0];
         const len = std.fmt.parseInt(usize, parts.next().?, 10) catch unreachable;
         const col = parts.next().?;
         _ = col;
-        dig(&hole, &current, dir, len);
-        e.minX = @min(e.minX, current.x);
-        e.minY = @min(e.minY, current.y);
-        e.maxX = @max(e.maxX, current.x);
-        e.maxY = @max(e.maxY, current.y);
+        switch (dir) {
+            'R' => current.x += @as(i32, @intCast(len)),
+            'L' => current.x -= @as(i32, @intCast(len)),
+            'U' => current.y += @as(i32, @intCast(len)),
+            'D' => current.y -= @as(i32, @intCast(len)),
+            else => unreachable,
+        }
+        try points.append(current);
     }
-    fill(&hole, e);
-    res.p1 = hole.count();
+    std.mem.sortUnstable(Point, points.items, {}, sortPointsY);
+    var active = std.ArrayList(Point).init(allocator);
+    var y = points.items[0].y;
+    _ = y;
+    var area:usize = 0;
+    _ = area;
+    var i:usize = 0;
+    while (i < points.items.len) : (i += 1) {
+        var p = points.items[i];
+        if (sameY(p, active.items) == null) {
+            try active.append(p);
+            std.mem.sortUnstable(Point, active.items, {}, sortPointsX);
+            continue;
+        }
+        std.mem.sortUnstable(Point, active.items, {}, sortPointsX);
+    }
     return res;
 }
 

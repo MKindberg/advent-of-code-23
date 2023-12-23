@@ -18,6 +18,7 @@ const Point = struct {
         return self.x == other.x and self.y == other.y and self.z == other.z;
     }
 };
+
 const Brick = struct {
     p1: Point,
     p2: Point,
@@ -72,10 +73,10 @@ const Brick = struct {
     }
 };
 
-fn isRemovable(allocator: std.mem.Allocator, bricks: []Brick, removed: []Brick, brick: Brick) bool {
-    var below = brick.below(allocator, bricks);
-    defer below.deinit();
-    for (below.items) |b| {
+const StrucureType = std.AutoHashMap(Brick, struct { above: std.ArrayList(Brick), below: std.ArrayList(Brick) });
+
+fn isRemovable(structure: StrucureType, removed: []Brick, brick: Brick) bool {
+    for (structure.get(brick).?.below.items) |b| {
         for (removed) |r| {
             if (b.eql(r)) break;
         } else return false;
@@ -83,13 +84,11 @@ fn isRemovable(allocator: std.mem.Allocator, bricks: []Brick, removed: []Brick, 
     return true;
 }
 
-fn remove(allocator: std.mem.Allocator, bricks: []Brick, removed: *std.ArrayList(Brick), brick: Brick) void {
-    var above = brick.above(allocator, bricks);
-    defer above.deinit();
-    for (above.items) |b| {
-        if (!isRemovable(allocator, bricks, removed.items, b)) continue;
+fn remove(structure: StrucureType, removed: *std.ArrayList(Brick), brick: Brick) void {
+    for (structure.get(brick).?.above.items) |b| {
+        if (!isRemovable(structure, removed.items, b)) continue;
         removed.append(b) catch unreachable;
-        remove(allocator, bricks, removed, b);
+        remove(structure, removed, b);
     }
 }
 
@@ -106,11 +105,26 @@ pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
         brick.drop(bricks.items);
     }
 
+    var structure = StrucureType.init(allocator);
+    defer {
+        var keys = structure.keyIterator();
+        while (keys.next()) |k| {
+            structure.get(k.*).?.above.deinit();
+            structure.get(k.*).?.below.deinit();
+        }
+        structure.deinit();
+    }
+    for (bricks.items) |brick| {
+        var above = brick.above(allocator, bricks.items);
+        var below = brick.below(allocator, bricks.items);
+        structure.put(brick, .{ .above = above, .below = below }) catch unreachable;
+    }
+
     var removed = std.ArrayList(Brick).init(allocator);
     defer removed.deinit();
     for (bricks.items) |brick| {
         removed.append(brick) catch unreachable;
-        remove(allocator, bricks.items, &removed, brick);
+        remove(structure, &removed, brick);
         if (removed.items.len == 1) res.p1 += 1;
         res.p2 += removed.items.len - 1;
         removed.clearRetainingCapacity();

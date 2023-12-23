@@ -19,10 +19,9 @@ fn printTimeDiff(diff: i128) void {
         const us = @divFloor(d, std.time.us_per_ms);
         std.debug.print("{}μs ", .{us});
         d -= us * std.time.ns_per_us;
-
-        std.debug.print("{}ns\n", .{d});
+        std.debug.print("{}ns", .{d});
     } else {
-        std.debug.print("{}μs\n", .{@divFloor(d, std.time.ns_per_us)});
+        std.debug.print("{}μs", .{@divFloor(d, std.time.ns_per_us)});
     }
 }
 
@@ -36,6 +35,7 @@ pub fn main() !void {
         outer: inline for (days, 1..) |day, i| {
             inline for (skip) |s| {
                 if (i == s) {
+                    std.debug.print("Day {}: -\n", .{i});
                     continue :outer;
                 }
             }
@@ -54,6 +54,10 @@ pub fn main() !void {
             total_time += test_time;
             std.debug.print("Day {}: ", .{i});
             printTimeDiff(test_time);
+            var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+            defer arena.deinit();
+            var res = try day.solve(arena.allocator(), day.getInput());
+            if (res.p2 == 0) std.debug.print(" (no part 2)\n", .{}) else std.debug.print("\n", .{});
         }
         std.debug.print("Total time: ", .{});
         printTimeDiff(total_time);

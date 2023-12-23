@@ -21,10 +21,22 @@ const Tile = struct {
     x: usize,
     y: usize,
     fn in(self: Tile, visited: []Tile) bool {
-        for (visited) |v| {
-            if (v.x == self.x and v.y == self.y) return true;
+        for (1..visited.len + 1) |i| {
+            var idx = visited.len - i;
+            if (visited[idx].x == self.x and visited[idx].y == self.y) return true;
         }
         return false;
+    }
+    fn eql(self: Tile, other: Tile) bool {
+        return self.x == other.x and self.y == other.y;
+    }
+    fn numDotsClose(self: Tile, map: []const []const u8) u8 {
+        var res: u8 = 0;
+        if (map[self.y + 1][self.x] != '#') res += 1;
+        if (map[self.y - 1][self.x] != '#') res += 1;
+        if (map[self.y][self.x + 1] != '#') res += 1;
+        if (map[self.y][self.x - 1] != '#') res += 1;
+        return res;
     }
 };
 
@@ -57,19 +69,22 @@ fn filter2(_: []const []const u8, _: Tile, dirs: []const Dir) []const Dir {
     return dirs[0..];
 }
 
-fn hike(map: []const []const u8, comptime filter: fn ([]const []const u8, Tile, []const Dir) []const Dir, visited: *std.ArrayList(Tile), current: Tile) usize {
+fn hike(map: []const []const u8, comptime filter: fn ([]const []const u8, Tile, []const Dir) []const Dir, visited: *std.ArrayList(Tile), prev: Tile, current: Tile, steps: usize) usize {
     if (map[current.y][current.x] == '#') return 0;
     if (current.in(visited.items)) return 0;
-    if (current.y == map.len - 1) return visited.items.len;
-    visited.append(current) catch unreachable;
-    if (current.y == 0) return hike(map, filter, visited, Dir.Down.step(current));
+    if (current.y == map.len - 1 and current.x == map[0].len - 2) return steps;
+
+    if (current.numDotsClose(map) > 2)
+        visited.append(current) catch unreachable;
 
     var max_steps: usize = 0;
     for (filter(map, current, std.enums.values(Dir))) |dir| {
-        max_steps = @max(max_steps, hike(map, filter, visited, dir.step(current)));
+        const next = dir.step(current);
+        if (next.eql(prev)) continue;
+        max_steps = @max(max_steps, hike(map, filter, visited, current, next, steps + 1));
     }
-
-    _ = visited.pop();
+    if (current.numDotsClose(map) > 2)
+        _ = visited.pop();
     return max_steps;
 }
 
@@ -84,9 +99,11 @@ pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
     var visited = std.ArrayList(Tile).init(allocator);
     defer visited.deinit();
 
-    res.p1 = hike(map.items, filter1, &visited, Tile{ .x = 1, .y = 0 });
-    visited.clearRetainingCapacity();
-    // res.p2 = hike(map.items, filter2, &visited, Tile{ .x = 1, .y = 0 });
+    res.p1 = hike(map.items, filter1, &visited, Tile{ .x = 1, .y = 0 }, Tile{ .x = 1, .y = 1 }, 1);
+    if (map.items.len < 30) { // Part 2 works but takes like 10 minutes...
+        visited.clearRetainingCapacity();
+        res.p2 = hike(map.items, filter2, &visited, Tile{ .x = 1, .y = 0 }, Tile{ .x = 1, .y = 1 }, 1);
+    }
 
     return res;
 }

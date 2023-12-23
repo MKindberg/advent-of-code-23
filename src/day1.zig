@@ -7,25 +7,28 @@ const alloc = gpa.allocator();
 
 const words: [9]struct { []const u8, usize } = .{ .{ "one", 1 }, .{ "two", 2 }, .{ "three", 3 }, .{ "four", 4 }, .{ "five", 5 }, .{ "six", 6 }, .{ "seven", 7 }, .{ "eight", 8 }, .{ "nine", 9 } };
 
-fn getDigit(comptime part: u8, word: []const u8) usize {
+fn getDigit1(word: []const u8) usize {
     if (std.ascii.isDigit(word[0])) {
         return word[0] - '0';
     }
-    if (part == 2) {
-        for (words) |w| {
-            const l = @min(w[0].len, word.len);
-            if (std.mem.eql(u8, w[0], word[0..l])) {
-                return w[1];
-            }
+    return 0;
+}
+fn getDigit2(word: []const u8) usize {
+    var d = getDigit1(word);
+    if (d != 0) return d;
+    for (words) |w| {
+        const l = @min(w[0].len, word.len);
+        if (std.mem.eql(u8, w[0], word[0..l])) {
+            return w[1];
         }
     }
     return 0;
 }
 
-fn parseLine(comptime part: u8, line: []const u8) usize {
+fn parseLine(comptime getDigit: fn (word: []const u8) usize, line: []const u8) usize {
     var i: usize = 0;
     const first: usize = while (i < line.len) : (i += 1) {
-        const d = getDigit(part, line[i..]);
+        const d = getDigit(line[i..]);
         if (d != 0) {
             break d;
         }
@@ -33,7 +36,7 @@ fn parseLine(comptime part: u8, line: []const u8) usize {
 
     i = 0;
     const last: usize = while (i < line.len) : (i += 1) {
-        const d = getDigit(part, line[line.len - 1 - i ..]);
+        const d = getDigit(line[line.len - 1 - i ..]);
         if (d != 0) {
             break d;
         }
@@ -47,8 +50,8 @@ pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
     var res = Result{ .p1 = 0, .p2 = 0 };
     var lines = std.mem.tokenizeScalar(u8, input, '\n');
     while (lines.next()) |line| {
-        res.p1 += parseLine(1, line);
-        res.p2 += parseLine(2, line);
+        res.p1 += parseLine(getDigit1, line);
+        res.p2 += parseLine(getDigit2, line);
     }
     return res;
 }

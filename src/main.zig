@@ -1,28 +1,41 @@
 const std = @import("std");
 const days = @import("days.zig").days;
+const colors = true;
 
 const skip = [_]usize{ 17, 18 };
 
+fn setColor(color: std.io.tty.Color) void {
+    if (colors) {
+        std.io.tty.Config.setColor(.escape_codes, std.io.getStdErr(), color) catch {};
+    }
+}
+
 fn printTimeDiff(diff: i128) void {
     var d = diff;
+    defer setColor(.reset);
     if (d > std.time.ns_per_s) {
+        setColor(.red);
         const sec = @divFloor(d, std.time.ns_per_s);
         std.debug.print("{}s ", .{sec});
         d -= sec * std.time.ns_per_s;
+        if (sec > 10) return;
     }
     if (d > std.time.ns_per_ms) {
+        setColor(.yellow);
         const ms = @divFloor(d, std.time.ns_per_ms);
         std.debug.print("{}ms ", .{ms});
         d -= ms * std.time.ns_per_ms;
+        if (ms > 10) return;
     }
-    if (d < std.time.ns_per_us * 10) {
+    if (d > std.time.ns_per_us) {
+        setColor(.green);
         const us = @divFloor(d, std.time.us_per_ms);
         std.debug.print("{}μs ", .{us});
         d -= us * std.time.ns_per_us;
-        std.debug.print("{}ns", .{d});
-    } else {
-        std.debug.print("{}μs", .{@divFloor(d, std.time.ns_per_us)});
+        if (us > 10) return;
     }
+    setColor(.cyan);
+    std.debug.print("{}ns ", .{d});
 }
 
 pub fn main() !void {
@@ -57,7 +70,7 @@ pub fn main() !void {
             var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
             defer arena.deinit();
             var res = try day.solve(arena.allocator(), day.getInput());
-            if (res.p2 == 0) std.debug.print(" (no part 2)\n", .{}) else std.debug.print("\n", .{});
+            if (res.p2 == 0) std.debug.print("(no part 2)\n", .{}) else std.debug.print("\n", .{});
         }
         std.debug.print("Total time: ", .{});
         printTimeDiff(total_time);

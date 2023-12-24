@@ -2,7 +2,7 @@ const std = @import("std");
 const days = @import("days.zig").days;
 const colors = true;
 
-const skip = [_]usize{ 17, 18 };
+const skip = [_]usize{ 17, 18};
 
 fn setColor(color: std.io.tty.Color) void {
     if (colors) {

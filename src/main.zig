@@ -2,7 +2,16 @@ const std = @import("std");
 const days = @import("days.zig").days;
 const colors = true;
 
-const skip = [_]usize{ 17, 18};
+const skip = [_]usize{ 17, 18 };
+const slow = [_]usize{21};
+const very_slow = [_]usize{23};
+
+fn in(comptime haystack: []const usize, comptime needle: usize) bool {
+    for (haystack) |item| {
+        if (item == needle) return true;
+    }
+    return false;
+}
 
 fn setColor(color: std.io.tty.Color) void {
     if (colors) {
@@ -42,16 +51,20 @@ pub fn main() !void {
     var args = std.process.args();
     _ = args.skip();
     const d = std.fmt.parseInt(usize, args.next() orelse "0", 10) catch @panic("First arg must be an integer");
-    const n = std.fmt.parseInt(usize, args.next() orelse "1", 10) catch @panic("Second arg must be an integer");
+    const loops = std.fmt.parseInt(usize, args.next() orelse "1", 10) catch @panic("Second arg must be an integer");
     var total_time: i128 = 0;
     if (d == 0) {
-        outer: inline for (days, 1..) |day, i| {
-            inline for (skip) |s| {
-                if (i == s) {
-                    std.debug.print("Day {}: -\n", .{i});
-                    continue :outer;
-                }
+        inline for (days, 1..) |day, i| {
+            if (comptime in(skip[0..], i)) {
+                std.debug.print("Day {}: -\n", .{i});
+                continue;
             }
+            const n = loop_count: {
+                if (comptime in(very_slow[0..], i)) break :loop_count 1;
+                if (comptime in(slow[0..], i)) break :loop_count @min(10, loops);
+                break :loop_count loops;
+            };
+
             var test_time: i128 = 0;
             for (0..n) |_| {
                 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -78,7 +91,7 @@ pub fn main() !void {
     } else {
         inline for (days, 1..) |day, i| {
             if (i == d) {
-                for (0..n) |_| {
+                for (0..loops) |_| {
                     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
                     defer arena.deinit();
 
@@ -90,7 +103,7 @@ pub fn main() !void {
                     total_time += diff;
                 }
                 std.debug.print("Average time: ", .{});
-                printTimeDiff(@divTrunc(total_time, n));
+                printTimeDiff(@divTrunc(total_time, loops));
                 std.debug.print("\n", .{});
             }
         }

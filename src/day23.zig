@@ -2,6 +2,9 @@ const std = @import("std");
 const print = std.debug.print;
 
 const Result = struct { p1: usize, p2: usize };
+const StepsDir = struct { dirs: [4]Dir, len: usize };
+const CacheItem = struct { tile: Tile, steps: usize, dirs: StepsDir };
+const Cache = std.AutoHashMap(Tile, CacheItem);
 
 const Dir = enum {
     Up,
@@ -27,64 +30,74 @@ const Tile = struct {
         }
         return false;
     }
-    fn eql(self: Tile, other: Tile) bool {
-        return self.x == other.x and self.y == other.y;
-    }
-    fn numDotsClose(self: Tile, map: []const []const u8) u8 {
-        var res: u8 = 0;
-        if (map[self.y + 1][self.x] != '#') res += 1;
-        if (map[self.y - 1][self.x] != '#') res += 1;
-        if (map[self.y][self.x + 1] != '#') res += 1;
-        if (map[self.y][self.x - 1] != '#') res += 1;
-        return res;
-    }
 };
 
-fn filter1(map: []const []const u8, current: Tile, dirs: []const Dir) []const Dir {
-    switch (map[current.y][current.x]) {
-        '.' => {
-            return dirs[0..];
-        },
-        '>' => {
-            const idx: u8 = @intFromEnum(Dir.Right);
-            return dirs[idx .. idx + 1];
-        },
-        '<' => {
-            const idx = @intFromEnum(Dir.Left);
-            return dirs[idx .. idx + 1];
-        },
-        '^' => {
-            const idx = @intFromEnum(Dir.Up);
-            return dirs[idx .. idx + 1];
-        },
-        'v' => {
-            const idx = @intFromEnum(Dir.Down);
-            return dirs[idx .. idx + 1];
-        },
-        else => unreachable,
-    }
-    unreachable;
+fn filter1(map: []const []const u8, current: Tile, prev_dir: Dir) StepsDir {
+    var len: usize = 0;
+    var dirs: [4]Dir = undefined;
+    var cur = map[current.y][current.x];
+    // zig fmt: off
+    if((cur == '.' or cur == 'v') and map[current.y + 1][current.x] != '#' and prev_dir != .Up) {dirs[len] = .Down; len += 1;}
+    if((cur == '.' or cur == '^') and map[current.y - 1][current.x] != '#' and prev_dir != .Down) {dirs[len] = .Up; len += 1;}
+    if((cur == '.' or cur == '<') and map[current.y][current.x - 1] != '#' and prev_dir != .Right) {dirs[len] = .Left; len += 1;}
+    if((cur == '.' or cur == '>') and map[current.y][current.x + 1] != '#' and prev_dir != .Left) {dirs[len] = .Right; len += 1;}
+    // zig fmt: on
+    return StepsDir{ .dirs = dirs, .len = len };
 }
-fn filter2(_: []const []const u8, _: Tile, dirs: []const Dir) []const Dir {
-    return dirs[0..];
+fn filter2(map: []const []const u8, current: Tile, prev_dir: Dir) StepsDir {
+    var len: usize = 0;
+    var dirs: [4]Dir = undefined;
+    // zig fmt: off
+    if(map[current.y + 1][current.x] != '#' and prev_dir != .Up) {dirs[len] = Dir.Down; len += 1;}
+    if(map[current.y - 1][current.x] != '#' and prev_dir != .Down) {dirs[len] = Dir.Up; len += 1;}
+    if(map[current.y][current.x - 1] != '#' and prev_dir != .Right) {dirs[len] = Dir.Left; len += 1;}
+    if(map[current.y][current.x + 1] != '#' and prev_dir != .Left) {dirs[len] = Dir.Right; len += 1;}
+    // zig fmt: on
+    return StepsDir{ .dirs = dirs, .len = len };
 }
 
-fn hike(map: []const []const u8, comptime filter: fn ([]const []const u8, Tile, []const Dir) []const Dir, visited: *std.ArrayList(Tile), prev: Tile, current: Tile, steps: usize) usize {
-    if (map[current.y][current.x] == '#') return 0;
-    if (current.in(visited.items)) return 0;
-    if (current.y == map.len - 1 and current.x == map[0].len - 2) return steps;
+const FilterFn = fn ([]const []const u8, Tile, Dir) StepsDir;
 
-    if (current.numDotsClose(map) > 2)
-        visited.append(current) catch unreachable;
-
+// zig fmt: off
+fn hike(
+    map: []const []const u8,
+    comptime filter: FilterFn,
+    cache: *Cache,
+    visited: *std.ArrayList(Tile),
+    prev_dir: Dir,
+    current: Tile,
+    steps: usize
+) usize {
+    // zig fmt: on
+    var dirs = filter(map, current, prev_dir);
     var max_steps: usize = 0;
-    for (filter(map, current, std.enums.values(Dir))) |dir| {
-        const next = dir.step(current);
-        if (next.eql(prev)) continue;
-        max_steps = @max(max_steps, hike(map, filter, visited, current, next, steps + 1));
+    var next = current;
+    var s = steps;
+    var p = prev_dir;
+
+    if (cache.get(current)) |item| {
+        next = item.tile;
+        s += item.steps;
+        dirs = item.dirs;
+    } else {
+        while (dirs.len == 1) : (dirs = filter(map, next, p)) {
+            next = dirs.dirs[0].step(next);
+            s += 1;
+            p = dirs.dirs[0];
+            if (next.y == map.len - 1 and next.x == map[0].len - 2) return s;
+        }
+        cache.put(current, CacheItem{ .tile = next, .steps = s - steps, .dirs = dirs }) catch unreachable;
     }
-    if (current.numDotsClose(map) > 2)
-        _ = visited.pop();
+
+    if (next.in(visited.items)) return 0;
+    visited.append(next) catch unreachable;
+    defer _ = visited.pop();
+
+    const c = next;
+    for (0..dirs.len) |d| {
+        next = dirs.dirs[d].step(c);
+        max_steps = @max(max_steps, hike(map, filter, cache, visited, dirs.dirs[d], next, s + 1));
+    }
     return max_steps;
 }
 
@@ -99,11 +112,15 @@ pub fn solve(allocator: std.mem.Allocator, input: []const u8) !Result {
     var visited = std.ArrayList(Tile).init(allocator);
     defer visited.deinit();
 
-    res.p1 = hike(map.items, filter1, &visited, Tile{ .x = 1, .y = 0 }, Tile{ .x = 1, .y = 1 }, 1);
-    if (map.items.len < 30) { // Part 2 works but takes like 10 minutes...
-        visited.clearRetainingCapacity();
-        res.p2 = hike(map.items, filter2, &visited, Tile{ .x = 1, .y = 0 }, Tile{ .x = 1, .y = 1 }, 1);
-    }
+    var cache = Cache.init(allocator);
+    defer cache.deinit();
+
+    res.p1 = hike(map.items, filter1, &cache, &visited, .Down, Tile{ .x = 1, .y = 1 }, 1);
+    // if (map.items.len < 30) {
+    visited.clearRetainingCapacity();
+    cache.clearRetainingCapacity();
+    res.p2 = hike(map.items, filter2, &cache, &visited, .Down, Tile{ .x = 1, .y = 1 }, 1);
+    // }
 
     return res;
 }
@@ -125,6 +142,7 @@ pub fn main() !void {
     _ = args.skip();
     const input = if (args.next()) |path| readInput(allocator, path) else getInput();
     const res = try solve(allocator, input);
+    std.debug.assert(res.p1 == 2034);
     std.debug.print("\nPart 1: {}\n", .{res.p1});
     std.debug.print("Part 2: {}\n", .{res.p2});
 }
